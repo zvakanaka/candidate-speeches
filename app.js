@@ -6,7 +6,6 @@ const tinyreq = require('tinyreq');
 const cheerio = require('cheerio');
 const tableParser = require('cheerio-tableparser');
 const Browser = require('zombie');
-const tabletojson = require('tabletojson');
 const fs = require('fs');
 const getQueryParam = require('get-query-param');
 const csvWriter = require('csv-write-stream');

@@ -1,0 +1,32 @@
+{
+  "name": "candidate-speeches",
+  "version": "1.0.0",
+  "description": "Presidential candidate speeches data collection",
+  "main": "app.js",
+  "scripts": {
+    "test": "node app.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/zvakanaka/candidate-speeches.git"
+  },
+  "keywords": [
+    "speeches",
+    "presidential",
+    "candidate"
+  ],
+  "author": "Adam Quinton",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/zvakanaka/candidate-speeches/issues"
+  },
+  "homepage": "https://github.com/zvakanaka/candidate-speeches#readme",
+  "dependencies": {
+    "cheerio": "^0.22.0",
+    "cheerio-tableparser": "^1.0.1",
+    "csv-write-stream": "^2.0.0",
+    "get-query-param": "^2.0.0",
+    "tinyreq": "^3.2.0",
+    "zombie": "^5.0.5"
+  }
+}
