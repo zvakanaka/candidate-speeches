@@ -9,6 +9,7 @@ const Browser = require('zombie');
 const fs = require('fs');
 const getQueryParam = require('get-query-param');
 const csvWriter = require('csv-write-stream');
+const htmlToText = require('html-to-text');
 
 const HOME_PAGE = 'http://www.presidency.ucsb.edu';
 
@@ -70,7 +71,7 @@ function getCandidateHtml(candidate) {
             .then((html2, err) => {
               if (err) reject(err);
               let ch2 = cheerio.load(html2);
-              let speechText = ch2('.displaytext');
+              let speechText = htmlToText.fromString(ch2('.displaytext'), { wordwrap: false });
               let docDate = ch2('.docdate').html();
               let papersTitle = ch2('.paperstitle').html();
                 speechesWriter.write({ candidateId: candidate.id, candidateName: candidate.name, speechUrl: link.url, speechType: link.type, docDate: docDate, papersTitle: papersTitle, speechText, speechText });
@@ -124,7 +125,7 @@ function scrape(url, needsJavaScript = false)  {
 
     candidates.forEach((can, i) => {
       //TODO: remove next line to loop through each candidates speeches
-      if (i === 0)
+      if (i === 3)
       getCandidateHtml(can).then(canHtml => {
         //write a file for each candidate
         console.log(`THIS WAS RESOLVED ${can.name}`);

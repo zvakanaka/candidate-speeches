@@ -26,6 +26,7 @@
     "cheerio-tableparser": "^1.0.1",
     "csv-write-stream": "^2.0.0",
     "get-query-param": "^2.0.0",
+    "html-to-text": "^3.1.0",
     "tinyreq": "^3.2.0",
     "zombie": "^5.0.5"
   }
