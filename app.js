@@ -14,6 +14,8 @@ const htmlToText = require('html-to-text');
 
 const HOME_PAGE = 'http://www.presidency.ucsb.edu';
 const CANDIDATE_NUMBER = Number(process.argv[3]) || false;
+const FILE_WAIT_MS = 50000; // wait before closing file (bug workaround)
+const ELECTION_YEAR = process.argv[2] || '2016';
 
 // to not act like a DOS attack :)
 function getRandomInt(min, max) {
@@ -54,7 +56,7 @@ function cleanse(data) {
 
 function getCandidateHtml(candidate) {
   return new Promise(function(resolve, reject) {
-    let outfile = candidate.name.replace(' ', '_')+'.csv';
+    let outfile = `${candidate.name.replace(' ', '_')}_${ELECTION_YEAR}.csv`;
     let speechesWriter = csvWriter();
     speechesWriter.pipe(fs.createWriteStream(outfile));
 
@@ -133,10 +135,10 @@ function scrape(url, needsJavaScript = false)  {
       if (i+1 === CANDIDATE_NUMBER)
       getCandidateHtml(can).then(speechesWriter => {
         //write a file for each candidate
-        console.log(`Completed CSV for ${can.name}, closing file in 50 seconds...`);
+        console.log(`Completed CSV for ${can.name}, closing file in ${FILE_WAIT_MS/1000} seconds...`);
         setTimeout(function() {
           speechesWriter.end();
-        }, 50000);
+        }, FILE_WAIT_MS);
       }).catch(err => {
         console.log(`ERROR getting data for ${can.name}: ${err}`);
         speechesWriter.end();
@@ -145,5 +147,4 @@ function scrape(url, needsJavaScript = false)  {
   });
 }
 
-let electionYear = process.argv[2] || '2016';
-scrape(`${HOME_PAGE}/${electionYear}_election.php`);
+scrape(`${HOME_PAGE}/${ELECTION_YEAR}_election.php`);
