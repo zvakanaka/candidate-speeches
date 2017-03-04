@@ -2,6 +2,7 @@
 Adam Quinton
 MIT License
 */
+const path = require('path');
 const tinyreq = require('tinyreq');
 const cheerio = require('cheerio');
 const tableParser = require('cheerio-tableparser');
@@ -12,6 +13,7 @@ const csvWriter = require('csv-write-stream');
 const htmlToText = require('html-to-text');
 
 const HOME_PAGE = 'http://www.presidency.ucsb.edu';
+const CANDIDATE_NUMBER = Number(process.argv[3]) || false;
 
 // to not act like a DOS attack :)
 function getRandomInt(min, max) {
@@ -53,33 +55,32 @@ function cleanse(data) {
 function getCandidateHtml(candidate) {
   return new Promise(function(resolve, reject) {
     let outfile = candidate.name.replace(' ', '_')+'.csv';
-
     let speechesWriter = csvWriter();
     speechesWriter.pipe(fs.createWriteStream(outfile));
 
     candidate.links.forEach((link, j) => {
-      // if (link.type == 'campaign speeches')
       getPageBody(link.url).then((html, err) => {
         if (err) reject(err);
         let ch = cheerio.load(html);
         let speechLinks = ch('table[align=center] a');
         for (let x=0; x<speechLinks.length;x++) {
           let speechUrl = HOME_PAGE+'/'+speechLinks[x].attribs.href.substr(3);
-          // let randMilis = getRandomInt(10, 100);
-          // setTimeout(function waitABit(){
+          let randMilis = getRandomInt(10, 100);
+          setTimeout(function waitABit(){
             getPageBody(speechUrl)
             .then((html2, err) => {
               if (err) reject(err);
               let ch2 = cheerio.load(html2);
               let speechText = htmlToText.fromString(ch2('.displaytext'), { wordwrap: false });
+              console.log(speechText);
               let docDate = ch2('.docdate').html();
               let papersTitle = ch2('.paperstitle').html();
                 speechesWriter.write({ candidateId: candidate.id, candidateName: candidate.name, speechUrl: link.url, speechType: link.type, docDate: docDate, papersTitle: papersTitle, speechText, speechText });
                 if (x === speechLinks.length-1 && j === candidate.links.length-1) {
-                  resolve(`success, wrote to ${outfile}!`);
-                  speechesWriter.end();
+
+                  resolve(speechesWriter);// WARNING: CLOSE AFTER RESOLVING
                 }
-            // }, randMilis)
+            }, randMilis);
           });
         }
       });
@@ -99,7 +100,6 @@ function scrape(url, needsJavaScript = false)  {
       ch = cheerio.load(item);
 
       let campaignLinks = ch('p > a')
-      console.log('*** links');
       let id = '';
       let links = [];
       for (let i = 0; i < campaignLinks.length; i++) {
@@ -107,7 +107,6 @@ function scrape(url, needsJavaScript = false)  {
         let link = HOME_PAGE+'/'+a.attribs.href;
         id = getQueryParam('candidate', link);
         let docType = a.children[0].data;
-        console.log(link, docType, id);
         links.push({type: docType, url: link});
       };
 
@@ -119,28 +118,32 @@ function scrape(url, needsJavaScript = false)  {
 
       return {id: id,
               name: name,
-              links: links
-            };
+              links: links };
     });
 
     candidates.forEach((can, i) => {
-      //TODO: remove next line to loop through each candidates speeches
-      if (i === 3)
-      getCandidateHtml(can).then(canHtml => {
+      if (!CANDIDATE_NUMBER) {
+        if (i === 0) {
+          console.log(`Usage: ${path.basename(process.argv[0])} ${path.basename(process.argv[1])} year id`);
+          console.log(`\nid name`);
+        }
+        let iterate = i+1 < 10 ? ` ${i+1}`: `${i+1}`;
+        console.log(`${iterate} ${can.name}`);
+      }
+      if (i+1 === CANDIDATE_NUMBER)
+      getCandidateHtml(can).then(speechesWriter => {
         //write a file for each candidate
-        console.log(`THIS WAS RESOLVED ${can.name}`);
+        console.log(`Completed CSV for ${can.name}, closing file in 50 seconds...`);
+        setTimeout(function() {
+          speechesWriter.end();
+        }, 50000);
       }).catch(err => {
         console.log(`ERROR getting data for ${can.name}: ${err}`);
+        speechesWriter.end();
       });
-
     });
-
-    // fs.writeFile('stuff.json', JSON.stringify(candidates, null, 2), function (err) {
-    //   if (err) return console.log(err);
-    //   console.log('wrote it');
-    // });
   });
 }
 
-scrape(HOME_PAGE+'/2016_election.php');
-// scrape(HOME_PAGE+'/2008_election.php');
+let electionYear = process.argv[2] || '2016';
+scrape(`${HOME_PAGE}/${electionYear}_election.php`);
