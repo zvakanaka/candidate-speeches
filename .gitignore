@@ -1,3 +1,3 @@
-*.csv
+*speeches.json
 node_modules/
 *.zip

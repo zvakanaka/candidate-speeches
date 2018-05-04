@@ -6,16 +6,17 @@ const path = require('path');
 const tinyreq = require('tinyreq');
 const cheerio = require('cheerio');
 const tableParser = require('cheerio-tableparser');
-const Browser = require('zombie');
 const fs = require('fs');
 const getQueryParam = require('get-query-param');
-const csvWriter = require('csv-write-stream');
 const htmlToText = require('html-to-text');
+const low = require('lowdb')
+const FileSync = require('lowdb/adapters/FileSync')
 
 const HOME_PAGE = 'http://www.presidency.ucsb.edu';
 const CANDIDATE_NUMBER = Number(process.argv[3]) || false;
-const FILE_WAIT_MS = 50000; // wait before closing file (bug workaround)
 const ELECTION_YEAR = process.argv[2] || '2016';
+const RAND_MS_MIN = 50;
+const RAND_MS_MAX = 750;
 
 // to not act like a DOS attack :)
 function getRandomInt(min, max) {
@@ -27,22 +28,16 @@ function getRandomInt(min, max) {
 function getPageBody (url, needsJavaScript = false) {
   console.log('REQUESTING', url);
   return new Promise(function(resolve, reject) {
-    if (needsJavaScript) { // use zombie for needsJS sites
-      const browser = new Browser();
-      browser.visit(url).then(function() {
-        let body = browser.document.documentElement.innerHTML;
-        browser.tabs.closeAll()
-        resolve(Buffer.from(body, 'utf8'));
-      }).catch(err => reject(err));
+    if (needsJavaScript) {
+      throw new Error('no javascript browser set up');
     } else {
       tinyreq({ url: url,
                 headers: {
                     "user-agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/56.0.2924.59 Safari/537.36"
                 }}, (err, bodaciousBody) => {
         if (err) {
-          // reject(err);
-          //TODO: fix back
-          resolve('')
+          console.log(`ERROR requesting speech from URL: ${url}\n${err}`);
+          resolve('');
         }
         resolve(bodaciousBody);
       });
@@ -56,32 +51,34 @@ function cleanse(data) {
 
 function getCandidateHtml(candidate) {
   return new Promise(function(resolve, reject) {
-    let outfile = `${candidate.name.replace(' ', '_')}_${ELECTION_YEAR}.csv`;
-    let speechesWriter = csvWriter();
-    speechesWriter.pipe(fs.createWriteStream(outfile));
+
+    const adapter = new FileSync(`${candidate.name.replace(' ', '_')}_${ELECTION_YEAR}_speeches.json`)
+    const db = low(adapter)
+    db.defaults({ speeches: []})
+      .write()
 
     candidate.links.forEach((link, j) => {
       getPageBody(link.url).then((html, err) => {
         if (err) reject(err);
         let ch = cheerio.load(html);
         let speechLinks = ch('table[align=center] a');
-        for (let x=0; x<speechLinks.length;x++) {
+        for (let x = 0; x < speechLinks.length; x++) {
           let speechUrl = HOME_PAGE+'/'+speechLinks[x].attribs.href.substr(3);
-          let randMilis = getRandomInt(10, 100);
+          let randMilis = getRandomInt(RAND_MS_MIN, RAND_MS_MAX);
           setTimeout(function waitABit(){
             getPageBody(speechUrl)
             .then((html2, err) => {
               if (err) reject(err);
               let ch2 = cheerio.load(html2);
               let speechText = htmlToText.fromString(ch2('.displaytext'), { wordwrap: false });
-              console.log(speechText);
               let docDate = ch2('.docdate').html();
               let papersTitle = ch2('.paperstitle').html();
-                speechesWriter.write({ candidateId: candidate.id, candidateName: candidate.name, speechUrl: link.url, speechType: link.type, docDate: docDate, papersTitle: papersTitle, speechText, speechText });
-                if (x === speechLinks.length-1 && j === candidate.links.length-1) {
-
-                  resolve(speechesWriter);// WARNING: CLOSE AFTER RESOLVING
-                }
+              db.get('speeches')
+                .push({ candidateId: candidate.id, candidateName: candidate.name, speechUrl: link.url, speechType: link.type, docDate: docDate, papersTitle: papersTitle, speechText, speechText })
+                .write();
+              if (x === speechLinks.length-1 && j === candidate.links.length-1) {
+                resolve(x);
+              }
             }, randMilis);
           });
         }
@@ -133,15 +130,11 @@ function scrape(url, needsJavaScript = false)  {
         console.log(`${iterate} ${can.name}`);
       }
       if (i+1 === CANDIDATE_NUMBER)
-      getCandidateHtml(can).then(speechesWriter => {
-        //write a file for each candidate
-        console.log(`Completed CSV for ${can.name}, closing file in ${FILE_WAIT_MS/1000} seconds...`);
-        setTimeout(function() {
-          speechesWriter.end();
-        }, FILE_WAIT_MS);
+      getCandidateHtml(can).then(numSpeeches => {
+        //report for each candidate
+        console.log(`Completed write for ${can.name}, wrote ${numSpeeches} speeches`);
       }).catch(err => {
         console.log(`ERROR getting data for ${can.name}: ${err}`);
-        speechesWriter.end();
       });
     });
   });

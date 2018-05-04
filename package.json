@@ -4,7 +4,7 @@
   "description": "Presidential candidate speeches data collection",
   "main": "app.js",
   "scripts": {
-    "test": "node app.js"
+    "run": "node app.js"
   },
   "repository": {
     "type": "git",
@@ -13,7 +13,8 @@
   "keywords": [
     "speeches",
     "presidential",
-    "candidate"
+    "candidate",
+    "campaign"
   ],
   "author": "Adam Quinton",
   "license": "MIT",
@@ -24,10 +25,9 @@
   "dependencies": {
     "cheerio": "^0.22.0",
     "cheerio-tableparser": "^1.0.1",
-    "csv-write-stream": "^2.0.0",
     "get-query-param": "^2.0.0",
     "html-to-text": "^3.1.0",
-    "tinyreq": "^3.2.0",
-    "zombie": "^5.0.5"
+    "lowdb": "^1.0.0",
+    "tinyreq": "^3.2.0"
   }
 }
