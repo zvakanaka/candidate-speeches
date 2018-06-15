@@ -26,7 +26,6 @@ function getRandomInt(min, max) {
 }
 
 function getPageBody (url, needsJavaScript = false) {
-  console.log('REQUESTING', url);
   return new Promise(function(resolve, reject) {
     if (needsJavaScript) {
       throw new Error('no javascript browser set up');
@@ -49,39 +48,55 @@ function cleanse(data) {
   return data.filter(d => d.length > 0)
 }
 
+function getSpeech(speechUrl) {
+  return new Promise(function(resolve, reject) {
+    let randMilis = getRandomInt(RAND_MS_MIN, RAND_MS_MAX);
+    setTimeout(function getSpeechAfterTimeout(){
+      getPageBody(speechUrl)
+      .then((html2, err) => {
+        if (err) reject(err);
+        let ch2 = cheerio.load(html2);
+        let speechText = htmlToText.fromString(ch2('.displaytext'), { wordwrap: false });
+        let docDate = ch2('.docdate').html();
+        let papersTitle = ch2('.paperstitle').html();
+        resolve({speechText, docDate, papersTitle});
+      }, randMilis);
+    });
+  });
+}
 function getCandidateHtml(candidate) {
   return new Promise(function(resolve, reject) {
-
     const adapter = new FileSync(`${candidate.name.replace(' ', '_')}_${ELECTION_YEAR}_speeches.json`)
     const db = low(adapter)
     db.defaults({ speeches: []})
       .write()
-
+    console.log(`${candidate.links.length} links`);
     candidate.links.forEach((link, j) => {
       getPageBody(link.url).then((html, err) => {
         if (err) reject(err);
         let ch = cheerio.load(html);
         let speechLinks = ch('table[align=center] a');
-        for (let x = 0; x < speechLinks.length; x++) {
-          let speechUrl = HOME_PAGE+'/'+speechLinks[x].attribs.href.substr(3);
-          let randMilis = getRandomInt(RAND_MS_MIN, RAND_MS_MAX);
-          setTimeout(function waitABit(){
-            getPageBody(speechUrl)
-            .then((html2, err) => {
-              if (err) reject(err);
-              let ch2 = cheerio.load(html2);
-              let speechText = htmlToText.fromString(ch2('.displaytext'), { wordwrap: false });
-              let docDate = ch2('.docdate').html();
-              let papersTitle = ch2('.paperstitle').html();
+        console.log(`${speechLinks.length} speeches for link ${j}`);
+        const arr = []; // so we can use reduce to synchronously loop using promises
+        for (let x = 0; x < speechLinks.length; x++) arr.push(x);
+
+        arr.reduce(function(p, item, i) {
+          return p.then(function() {
+            const speechUrl = HOME_PAGE+'/'+speechLinks[i].attribs.href.substr(3);
+            console.log(`${j}.${i}`, 'Requesting:', speechUrl);
+            return getSpeech(speechUrl).then((speechObj) => {
+              const {docDate, papersTitle, speechText} = speechObj;
+              console.log(`${j}.${i}`, 'Received:  ', papersTitle)
               db.get('speeches')
-                .push({ candidateId: candidate.id, candidateName: candidate.name, speechUrl: link.url, speechType: link.type, docDate: docDate, papersTitle: papersTitle, speechText, speechText })
-                .write();
-              if (x === speechLinks.length-1 && j === candidate.links.length-1) {
-                resolve(x);
-              }
-            }, randMilis);
+              .push({ candidateId: candidate.id, candidateName: candidate.name, speechUrl: link.url, speechType: link.type, docDate, papersTitle, speechText })
+              .write();
+            });
           });
-        }
+        }, Promise.resolve()).then(function() {
+          console.log(`Link ${j} speeches complete`);
+        }).catch(function(err) {
+          console.warn(err)
+        });
       });
     });
   });
@@ -115,9 +130,7 @@ function scrape(url, needsJavaScript = false)  {
         name = basicInfo[0].children[0].data.trim();
       }
 
-      return {id: id,
-              name: name,
-              links: links };
+      return {id, name, links};
     });
 
     candidates.forEach((can, i) => {
